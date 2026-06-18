@@ -4,10 +4,261 @@
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  passwordHash    String
+  name            String?
+  profileImageUrl String?
+  role            UserRole  @default(USER)
+  emailVerifiedAt      DateTime?
+  lastLoginAt          DateTime?
+  refreshTokenHash     String?
+  refreshTokenExpiresAt DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  projects      Project[]
+  media         MediaAsset[]
+  exportJobs    ExportJob[]
+  aiGenerations AiGeneration[]
+  activity      Activity[]
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+model Project {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title          String
+  description    String?
+  thumbnailUrl   String?
+  hue            Int?
+  status         ProjectStatus @default(DRAFT)
+  durationMs     Int?
+  storageBytes   BigInt        @default(0)
+  editorState    Json?
+  lastActivityAt DateTime      @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  media         MediaAsset[]
+  clips         TimelineClip[]
+  exportJobs    ExportJob[]
+  aiGenerations AiGeneration[]
+  activity      Activity[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+enum ProjectStatus {
+  DRAFT
+  IN_PROGRESS
+  EXPORTED
+  PUBLISHED
+  ARCHIVED
+}
+
+model MediaAsset {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  type            MediaType
+  provider        String    @default("local")
+  providerAssetId String?
+  sourceUrl       String
+  thumbnailUrl    String?
+  durationMs      Int?
+  width           Int?
+  height          Int?
+  fileSizeBytes   BigInt?
+  metadata        Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clips         TimelineClip[]
+  aiGenerations AiGeneration[]
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([type])
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  AUDIO
+  OTHER
+}
+
+model TimelineClip {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  mediaAssetId String?
+  mediaAsset   MediaAsset? @relation(fields: [mediaAssetId], references: [id], onDelete: SetNull)
+
+  trackIndex  Int    @default(0)
+  zIndex      Int    @default(0)
+  startTimeMs Int    @default(0)
+  durationMs  Int?
+  x           Float  @default(0)
+  y           Float  @default(0)
+  width       Float?
+  height      Float?
+  rotation    Float  @default(0)
+  opacity     Float  @default(1)
+  transform   Json?
+  metadata    Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([mediaAssetId])
+}
+
+model ExportJob {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  filename   String
+  format     ExportFormat     @default(MP4)
+  resolution ExportResolution @default(UHD_4K)
+  fps        FrameRate        @default(FPS_30)
+  proRes     Boolean          @default(false)
+  twoPass    Boolean          @default(false)
+
+  status       ExportStatus @default(QUEUED)
+  outputUrl    String?
+  errorMessage String?
+  progress     Int          @default(0)
+  startedAt    DateTime?
+  completedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([status])
+}
+
+enum ExportFormat {
+  MP4
+  MOV
+  WEBM
+  GIF
+}
+
+enum ExportResolution {
+  HD_1080P
+  QHD_1440P
+  UHD_4K
+  UHD_8K
+}
+
+enum FrameRate {
+  FPS_24
+  FPS_30
+  FPS_60
+}
+
+enum ExportStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
+model AiGeneration {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  outputMediaId String?
+  outputMedia   MediaAsset? @relation(fields: [outputMediaId], references: [id], onDelete: SetNull)
+
+  prompt       String
+  status       AiGenerationStatus @default(QUEUED)
+  progress     Int                @default(0)
+  errorMessage String?
+  metadata     Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([status])
+}
+
+enum AiGenerationStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
+model Activity {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  action   ActivityAction
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([createdAt])
+}
+
+enum ActivityAction {
+  USER_SIGNED_UP
+  USER_LOGGED_IN
+  PROJECT_CREATED
+  PROJECT_UPDATED
+  PROJECT_DELETED
+  MEDIA_UPLOADED
+  MEDIA_DELETED
+  EXPORT_STARTED
+  EXPORT_COMPLETED
+  EXPORT_FAILED
+  AI_GENERATION_STARTED
+  AI_GENERATION_COMPLETED
+  AI_GENERATION_FAILED
 }
