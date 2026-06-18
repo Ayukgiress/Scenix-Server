@@ -27,10 +27,20 @@ export class AuthService {
   ) {}
 
   private sign(userId: string, email: string) {
-    return this.jwt.sign({ sub: userId, email });
+    return this.jwt.sign(
+      { sub: userId, email },
+      {
+        secret: this.config.getOrThrow<string>('JWT_SECRET'),
+        expiresIn: this.config.get('JWT_EXPIRES_IN', '7d'),
+      },
+    );
   }
 
-  private async issueTokens(userId: string, email: string) {
+  private async issueTokens(
+    userId: string,
+    email: string,
+    emailVerified: boolean,
+  ) {
     const accessToken = this.sign(userId, email);
 
     const rawToken = randomBytes(40).toString('hex');
@@ -48,7 +58,7 @@ export class AuthService {
       data: { refreshTokenHash, refreshTokenExpiresAt },
     });
 
-    return { accessToken, refreshToken: rawToken };
+    return { accessToken, refreshToken: rawToken, emailVerified };
   }
 
   async validateUser(email: string, password: string) {
@@ -72,10 +82,13 @@ export class AuthService {
 
     const emailToken = this.jwt.sign(
       { sub: user.id, purpose: 'email-verify' },
-      { expiresIn: '24h' },
+      {
+        secret: this.config.getOrThrow<string>('JWT_SECRET'),
+        expiresIn: '24h',
+      },
     );
 
-    const verifyUrl = `${this.config.get('APP_URL')}/auth/verify-email?token=${emailToken}`;
+    const verifyUrl = `${this.config.get('CLIENT_URL')}/verify-email?token=${emailToken}`;
 
     await this.mailer.sendMail({
       to: user.email,
@@ -84,19 +97,30 @@ export class AuthService {
     });
     this.logger.debug(`[DEV] Verify email URL for ${user.email}: ${verifyUrl}`);
 
-    return { message: 'Registration successful. Please verify your email.' };
+    return {
+      message: 'Registration successful. Please verify your email.',
+      emailVerified: false,
+    };
   }
 
-  async login(user: { id: string; email: string }) {
+  async login(user: {
+    id: string;
+    email: string;
+    emailVerifiedAt: Date | null;
+  }) {
+    if (!user.emailVerifiedAt) {
+      throw new UnauthorizedException(
+        'Please verify your email before logging in',
+      );
+    }
+
     await this.prisma.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
     });
 
-    return this.issueTokens(user.id, user.email);
+    return this.issueTokens(user.id, user.email, true);
   }
-
-  //token refresh & logout
 
   async refresh(rawToken: string) {
     const refreshTokenHash = createHash('sha256')
@@ -121,7 +145,7 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token invalid or expired');
     }
 
-    return this.issueTokens(user.id, user.email);
+    return this.issueTokens(user.id, user.email, !!user.emailVerifiedAt);
   }
 
   async logout(rawToken: string) {
@@ -137,18 +161,29 @@ export class AuthService {
     return { message: 'Logged out successfully' };
   }
 
-  //email verification
-
   async verifyEmail(token: string) {
+    if (!token) throw new BadRequestException('Token is required');
+
     let payload: { sub: string; purpose: string };
     try {
-      payload = this.jwt.verify<{ sub: string; purpose: string }>(token);
+      payload = this.jwt.verify<{ sub: string; purpose: string }>(token, {
+        secret: this.config.getOrThrow<string>('JWT_SECRET'),
+      });
     } catch {
       throw new BadRequestException('Invalid or expired token');
     }
 
     if (payload.purpose !== 'email-verify') {
       throw new BadRequestException('Invalid token purpose');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+    });
+    if (!user) throw new BadRequestException('Invalid or expired token');
+
+    if (user.emailVerifiedAt) {
+      return { message: 'Email already verified' };
     }
 
     await this.prisma.user.update({
@@ -159,7 +194,22 @@ export class AuthService {
     return { message: 'Email verified successfully' };
   }
 
-  //password reset
+  async getMe(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        profileImageUrl: true,
+        role: true,
+        emailVerifiedAt: true,
+        createdAt: true,
+      },
+    });
+    if (!user) throw new UnauthorizedException();
+    return { ...user, emailVerified: !!user.emailVerifiedAt };
+  }
 
   async forgotPassword(dto: ForgotPasswordDto) {
     const user = await this.prisma.user.findUnique({
@@ -171,10 +221,10 @@ export class AuthService {
 
     const resetToken = this.jwt.sign(
       { sub: user.id, purpose: 'password-reset' },
-      { expiresIn: '1h' },
+      { secret: this.config.getOrThrow<string>('JWT_SECRET'), expiresIn: '1h' },
     );
 
-    const resetUrl = `${this.config.get('APP_URL')}/auth/reset-password?token=${resetToken}`;
+    const resetUrl = `${this.config.get('CLIENT_URL')}/reset-password?token=${resetToken}`;
 
     await this.mailer.sendMail({
       to: user.email,
@@ -191,7 +241,9 @@ export class AuthService {
   async resetPassword(dto: ResetPasswordDto) {
     let payload: { sub: string; purpose: string };
     try {
-      payload = this.jwt.verify<{ sub: string; purpose: string }>(dto.token);
+      payload = this.jwt.verify<{ sub: string; purpose: string }>(dto.token, {
+        secret: this.config.getOrThrow<string>('JWT_SECRET'),
+      });
     } catch {
       throw new BadRequestException('Invalid or expired token');
     }
@@ -199,6 +251,11 @@ export class AuthService {
     if (payload.purpose !== 'password-reset') {
       throw new BadRequestException('Invalid token purpose');
     }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+    });
+    if (!user) throw new BadRequestException('Invalid or expired token');
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
@@ -210,7 +267,6 @@ export class AuthService {
     return { message: 'Password reset successfully' };
   }
 
-  //google oauth
   async googleLogin(googleUser: {
     email: string;
     name: string;
@@ -237,6 +293,6 @@ export class AuthService {
       data: { lastLoginAt: new Date() },
     });
 
-    return this.issueTokens(user.id, user.email);
+    return this.issueTokens(user.id, user.email, !!user.emailVerifiedAt);
   }
 }
