@@ -12,6 +12,7 @@ import {
 import { Request } from 'express';
 import { MediaService } from './media.service';
 import { CreateMediaDto } from './dto/create-media.dto';
+import { CreateCloudinaryUploadDto } from './dto/create-cloudinary-upload.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @UseGuards(JwtAuthGuard)
@@ -25,6 +26,14 @@ export class MediaController {
     @Req() req: Request & { user: { id: string } },
   ) {
     return this.media.create(req.user.id, dto);
+  }
+
+  @Post('uploads/cloudinary')
+  createCloudinaryUpload(
+    @Body() dto: CreateCloudinaryUploadDto,
+    @Req() req: Request & { user: { id: string } },
+  ) {
+    return this.media.createCloudinaryUpload(req.user.id, dto);
   }
 
   @Get()
@@ -43,6 +52,14 @@ export class MediaController {
       limit: limit ? parseInt(limit, 10) : undefined,
       offset: offset ? parseInt(offset, 10) : undefined,
     });
+  }
+
+  @Get(':id/url')
+  getUrl(
+    @Param('id') id: string,
+    @Req() req: Request & { user: { id: string } },
+  ) {
+    return this.media.getUrl(id, req.user.id);
   }
 
   @Get(':id')

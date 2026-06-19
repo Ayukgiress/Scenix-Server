@@ -1,15 +1,20 @@
 import {
+  ForbiddenException,
   Injectable,
   NotFoundException,
-  ForbiddenException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { CreateCloudinaryUploadDto } from './dto/create-cloudinary-upload.dto';
 import { CreateMediaDto } from './dto/create-media.dto';
+import { CloudinaryStorageService } from '../storage/cloudinary-storage.service';
 
 @Injectable()
 export class MediaService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private cloudinary: CloudinaryStorageService,
+  ) {}
 
   async create(userId: string, dto: CreateMediaDto) {
     const asset = await this.prisma.mediaAsset.create({
@@ -24,6 +29,10 @@ export class MediaService {
         durationMs: dto.durationMs,
         width: dto.width,
         height: dto.height,
+        fileSizeBytes:
+          dto.fileSizeBytes !== undefined
+            ? BigInt(dto.fileSizeBytes)
+            : undefined,
         metadata: dto.metadata as Prisma.InputJsonValue | undefined,
       },
     });
@@ -38,6 +47,44 @@ export class MediaService {
     });
 
     return asset;
+  }
+
+  async createCloudinaryUpload(userId: string, dto: CreateCloudinaryUploadDto) {
+    if (dto.projectId) {
+      const project = await this.prisma.project.findUnique({
+        where: { id: dto.projectId },
+        select: { userId: true },
+      });
+
+      if (!project) throw new NotFoundException('Project not found');
+      if (project.userId !== userId) throw new ForbiddenException();
+    }
+
+    return this.cloudinary.createUpload({
+      userId,
+      type: dto.type,
+      filename: dto.filename,
+      projectId: dto.projectId,
+      fileSizeBytes: dto.fileSizeBytes,
+    });
+  }
+
+  async getUrl(assetId: string, userId: string) {
+    const asset = await this.findOne(assetId, userId);
+
+    if (asset.provider === 'cloudinary' && asset.providerAssetId) {
+      return {
+        url:
+          asset.sourceUrl ||
+          this.cloudinary.getSourceUrl(asset.providerAssetId, asset.type),
+        provider: asset.provider,
+      };
+    }
+
+    return {
+      url: asset.sourceUrl,
+      provider: asset.provider,
+    };
   }
 
   async findAll(
@@ -89,7 +136,11 @@ export class MediaService {
   }
 
   async remove(assetId: string, userId: string) {
-    await this.findOne(assetId, userId);
+    const asset = await this.findOne(assetId, userId);
+
+    if (asset.provider === 'cloudinary' && asset.providerAssetId) {
+      await this.cloudinary.deleteFile(asset.providerAssetId, asset.type);
+    }
 
     await this.prisma.mediaAsset.delete({ where: { id: assetId } });
 

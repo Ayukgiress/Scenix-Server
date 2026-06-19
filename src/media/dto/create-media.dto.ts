@@ -1,4 +1,11 @@
-import { IsString, IsOptional, IsEnum, IsInt, IsObject } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsEnum,
+  IsInt,
+  IsObject,
+  Min,
+} from 'class-validator';
 import { MediaType } from '@prisma/client';
 
 export class CreateMediaDto {
@@ -35,6 +42,11 @@ export class CreateMediaDto {
   @IsOptional()
   @IsInt()
   height?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  fileSizeBytes?: number;
 
   @IsOptional()
   @IsObject()
