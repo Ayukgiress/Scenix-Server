@@ -9,10 +9,12 @@ import { ProjectsModule } from './projects/projects.module';
 import { MediaModule } from './media/media.module';
 import { ExportModule } from './export/export.module';
 import { StorageModule } from './storage/storage.module';
+import { EventsModule } from './events/events.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    EventsModule,
     StorageModule,
     MailerModule.forRootAsync({
       inject: [ConfigService],

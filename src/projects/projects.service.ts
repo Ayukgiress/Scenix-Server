@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { EventsGateway } from '../events/events.gateway';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { CreateClipDto } from './dto/create-clip.dto';
@@ -12,7 +13,10 @@ import { UpdateClipDto } from './dto/update-clip.dto';
 
 @Injectable()
 export class ProjectsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private events: EventsGateway,
+  ) {}
 
   async create(userId: string, dto: CreateProjectDto) {
     const project = await this.prisma.project.create({
@@ -119,6 +123,8 @@ export class ProjectsService {
       },
     });
 
+    this.events.emitToProject(projectId, 'project:updated', project);
+
     return project;
   }
 
@@ -161,6 +167,9 @@ export class ProjectsService {
         transform: dto.transform as Prisma.InputJsonValue | undefined,
         metadata: dto.metadata as Prisma.InputJsonValue | undefined,
       },
+    }).then((clip) => {
+      this.events.emitToProject(projectId, 'clip:created', clip);
+      return clip;
     });
   }
 
@@ -208,6 +217,9 @@ export class ProjectsService {
     return this.prisma.timelineClip.update({
       where: { id: clipId },
       data: updateData,
+    }).then((clip) => {
+      this.events.emitToProject(projectId, 'clip:updated', clip);
+      return clip;
     });
   }
 
@@ -220,6 +232,7 @@ export class ProjectsService {
     if (!clip) throw new NotFoundException('Clip not found');
 
     await this.prisma.timelineClip.delete({ where: { id: clipId } });
+    this.events.emitToProject(projectId, 'clip:deleted', { id: clipId });
     return { message: 'Clip deleted' };
   }
 
