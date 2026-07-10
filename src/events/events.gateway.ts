@@ -9,13 +9,22 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket, DefaultEventsMap } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
+import { PrismaService } from '../prisma/prisma.service';
 
 type AuthenticatedSocket = Socket<
   DefaultEventsMap,
   DefaultEventsMap,
   DefaultEventsMap,
-  { userId: string }
+  { userId: string; userName: string }
 >;
+
+function userColor(userId: string): string {
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) {
+    hash = (hash * 31 + userId.charCodeAt(i)) >>> 0;
+  }
+  return `hsl(${hash % 360}, 70%, 60%)`;
+}
 
 @WebSocketGateway({
   cors: {
@@ -30,7 +39,10 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private userSockets = new Map<string, Set<string>>();
   private projectRooms = new Map<string, Set<string>>();
 
-  constructor(private jwtService: JwtService) {}
+  constructor(
+    private jwtService: JwtService,
+    private prisma: PrismaService,
+  ) {}
 
   async handleConnection(client: AuthenticatedSocket) {
     try {
@@ -40,10 +52,16 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return;
       }
 
-      const payload = await this.jwtService.verifyAsync<{ sub: string }>(token);
+      const payload = await this.jwtService.verifyAsync<{ sub: string; email: string }>(token);
       const userId = payload.sub;
 
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true, email: true },
+      });
+
       client.data.userId = userId;
+      client.data.userName = user?.name ?? payload.email?.split('@')[0] ?? userId;
 
       if (!this.userSockets.has(userId)) {
         this.userSockets.set(userId, new Set());
@@ -63,16 +81,19 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const sockets = this.userSockets.get(userId);
       if (sockets) {
         sockets.delete(client.id);
-        if (sockets.size === 0) {
-          this.userSockets.delete(userId);
-        }
+        if (sockets.size === 0) this.userSockets.delete(userId);
       }
     }
 
     for (const [projectId, sockets] of this.projectRooms.entries()) {
-      sockets.delete(client.id);
-      if (sockets.size === 0) {
-        this.projectRooms.delete(projectId);
+      if (sockets.has(client.id)) {
+        sockets.delete(client.id);
+        if (sockets.size === 0) this.projectRooms.delete(projectId);
+        if (userId) {
+          this.server
+            .to(`project:${projectId}`)
+            .emit('cursor:leave', { userId });
+        }
       }
     }
 
@@ -80,10 +101,21 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('join-project')
-  handleJoinProject(
+  async handleJoinProject(
     @MessageBody() projectId: string,
-    @ConnectedSocket() client: Socket,
+    @ConnectedSocket() client: AuthenticatedSocket,
   ) {
+    const userId = client.data.userId;
+    if (!userId) return { success: false, error: 'Unauthenticated' };
+
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { userId: true },
+    });
+    if (!project || project.userId !== userId) {
+      return { success: false, error: 'Access denied' };
+    }
+
     const room = `project:${projectId}`;
     client.join(room);
 
@@ -99,7 +131,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('leave-project')
   handleLeaveProject(
     @MessageBody() projectId: string,
-    @ConnectedSocket() client: Socket,
+    @ConnectedSocket() client: AuthenticatedSocket,
   ) {
     const room = `project:${projectId}`;
     client.leave(room);
@@ -107,13 +139,38 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const sockets = this.projectRooms.get(projectId);
     if (sockets) {
       sockets.delete(client.id);
-      if (sockets.size === 0) {
-        this.projectRooms.delete(projectId);
-      }
+      if (sockets.size === 0) this.projectRooms.delete(projectId);
+    }
+
+    const userId = client.data.userId;
+    if (userId) {
+      this.server.to(room).emit('cursor:leave', { userId });
     }
 
     console.log(`Client ${client.id} left project ${projectId}`);
     return { success: true };
+  }
+
+  @SubscribeMessage('cursor:update')
+  handleCursorUpdate(
+    @MessageBody()
+    payload: {
+      projectId: string;
+      currentTime: number;
+      selectedClipId: string | null;
+    },
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    const userId = client.data.userId;
+    if (!userId) return;
+
+    client.to(`project:${payload.projectId}`).emit('cursor:update', {
+      userId,
+      name: client.data.userName,
+      color: userColor(userId),
+      currentTime: payload.currentTime,
+      selectedClipId: payload.selectedClipId,
+    });
   }
 
   emitToProject(projectId: string, event: string, data: any) {

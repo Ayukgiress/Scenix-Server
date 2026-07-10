@@ -124,6 +124,12 @@ export class ProjectsService {
     });
 
     this.events.emitToProject(projectId, 'project:updated', project);
+    if (dto.title !== undefined) {
+      this.events.emitToProject(projectId, 'project:renamed', {
+        id: project.id,
+        title: project.title,
+      });
+    }
 
     return project;
   }
@@ -150,27 +156,29 @@ export class ProjectsService {
       if (!asset) throw new NotFoundException('Media asset not found');
     }
 
-    return this.prisma.timelineClip.create({
-      data: {
-        projectId,
-        mediaAssetId: dto.mediaAssetId,
-        trackIndex: dto.trackIndex ?? 0,
-        zIndex: dto.zIndex ?? 0,
-        startTimeMs: dto.startTimeMs ?? 0,
-        durationMs: dto.durationMs,
-        x: dto.x ?? 0,
-        y: dto.y ?? 0,
-        width: dto.width,
-        height: dto.height,
-        rotation: dto.rotation ?? 0,
-        opacity: dto.opacity ?? 1,
-        transform: dto.transform as Prisma.InputJsonValue | undefined,
-        metadata: dto.metadata as Prisma.InputJsonValue | undefined,
-      },
-    }).then((clip) => {
-      this.events.emitToProject(projectId, 'clip:created', clip);
-      return clip;
-    });
+    return this.prisma.timelineClip
+      .create({
+        data: {
+          projectId,
+          mediaAssetId: dto.mediaAssetId,
+          trackIndex: dto.trackIndex ?? 0,
+          zIndex: dto.zIndex ?? 0,
+          startTimeMs: dto.startTimeMs ?? 0,
+          durationMs: dto.durationMs,
+          x: dto.x ?? 0,
+          y: dto.y ?? 0,
+          width: dto.width,
+          height: dto.height,
+          rotation: dto.rotation ?? 0,
+          opacity: dto.opacity ?? 1,
+          transform: dto.transform as Prisma.InputJsonValue | undefined,
+          metadata: dto.metadata as Prisma.InputJsonValue | undefined,
+        },
+      })
+      .then((clip) => {
+        this.events.emitToProject(projectId, 'clip:created', clip);
+        return clip;
+      });
   }
 
   async findAllClips(projectId: string, userId: string) {
@@ -197,7 +205,7 @@ export class ProjectsService {
     if (!clip) throw new NotFoundException('Clip not found');
 
     const updateData: Prisma.TimelineClipUncheckedUpdateInput = {};
-    if (dto.mediaAssetId !== undefined)
+    if (dto.mediaAssetId != null)
       updateData.mediaAssetId = dto.mediaAssetId;
     if (dto.trackIndex !== undefined) updateData.trackIndex = dto.trackIndex;
     if (dto.zIndex !== undefined) updateData.zIndex = dto.zIndex;
@@ -214,13 +222,15 @@ export class ProjectsService {
     if (dto.metadata !== undefined)
       updateData.metadata = dto.metadata as Prisma.InputJsonValue;
 
-    return this.prisma.timelineClip.update({
-      where: { id: clipId },
-      data: updateData,
-    }).then((clip) => {
-      this.events.emitToProject(projectId, 'clip:updated', clip);
-      return clip;
-    });
+    return this.prisma.timelineClip
+      .update({
+        where: { id: clipId },
+        data: updateData,
+      })
+      .then((clip) => {
+        this.events.emitToProject(projectId, 'clip:updated', clip);
+        return clip;
+      });
   }
 
   async removeClip(clipId: string, projectId: string, userId: string) {

@@ -52,8 +52,18 @@ export class CloudinaryStorageService {
     const apiKey = this.configService.get<string>('CLOUDINARY_API_KEY');
     const apiSecret = this.configService.get<string>('CLOUDINARY_API_SECRET');
 
-    if (!cloudName || !apiKey || !apiSecret) {
-      return;
+    const isMissing =
+      !cloudName ||
+      !apiKey ||
+      !apiSecret ||
+      cloudName === 'undefined' ||
+      apiKey === 'undefined' ||
+      apiSecret === 'undefined';
+
+    if (isMissing) {
+      throw new BadRequestException(
+        'Cloudinary is not configured. Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET as environment variables.',
+      );
     }
 
     cloudinary.config({
@@ -72,18 +82,18 @@ export class CloudinaryStorageService {
     const folder = this.buildFolder(input.userId, input.projectId, input.type);
     const publicId = this.buildPublicId(input.filename);
     const timestamp = Math.floor(Date.now() / 1000);
-    const params: Record<string, string> = {
-      api_key: config.apiKey,
-      timestamp: String(timestamp),
-      public_id: publicId,
+
+    // Only params that are part of the signature (exclude api_key and file)
+    const signParams: Record<string, string> = {
       folder,
-      tags: `scenix,user_${this.safeTagValue(input.userId)}`,
-      context: this.buildContext(input.userId, input.projectId),
       overwrite: 'false',
+      public_id: publicId,
+      tags: `scenix,user_${this.safeTagValue(input.userId)}`,
+      timestamp: String(timestamp),
       unique_filename: 'false',
     };
     const signature = cloudinary.utils.api_sign_request(
-      params,
+      signParams,
       config.apiSecret,
     );
     const sourceUrl = cloudinary.url(publicId, {
@@ -97,7 +107,8 @@ export class CloudinaryStorageService {
       method: 'POST',
       fileFieldName: 'file',
       fields: {
-        ...params,
+        ...signParams,
+        api_key: config.apiKey,
         signature,
       },
       publicId,
@@ -230,7 +241,7 @@ export class CloudinaryStorageService {
   }
 
   private buildContext(userId: string, projectId?: string) {
-    return `user_id=${userId}\nproject_id=${projectId ?? 'none'}`;
+    return `user_id=${userId}|project_id=${projectId ?? 'none'}`;
   }
 
   private safeFilename(filename: string) {

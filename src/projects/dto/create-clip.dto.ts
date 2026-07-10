@@ -6,6 +6,8 @@ import {
   Min,
   Max,
   IsObject,
+  ValidateIf,
+  IsNotEmpty,
 } from 'class-validator';
 
 export class CreateClipDto {
@@ -59,7 +61,9 @@ export class CreateClipDto {
   @IsObject()
   transform?: Record<string, unknown>;
 
-  @IsOptional()
+  // When no mediaAssetId, metadata.text is required (text clip)
+  @ValidateIf((o: CreateClipDto) => !o.mediaAssetId)
+  @IsNotEmpty()
   @IsObject()
   metadata?: Record<string, unknown>;
 }

@@ -8,12 +8,26 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateCloudinaryUploadDto } from './dto/create-cloudinary-upload.dto';
 import { CreateMediaDto } from './dto/create-media.dto';
 import { CloudinaryStorageService } from '../storage/cloudinary-storage.service';
+import { EventsGateway } from '../events/events.gateway';
+
+function serializeBigInt(value: unknown): unknown {
+  if (typeof value === 'bigint') return value.toString();
+  if (value === null || value === undefined || value instanceof Date) return value;
+  if (Array.isArray(value)) return value.map(serializeBigInt);
+  if (typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = serializeBigInt(v);
+    return out;
+  }
+  return value;
+}
 
 @Injectable()
 export class MediaService {
   constructor(
     private prisma: PrismaService,
     private cloudinary: CloudinaryStorageService,
+    private events: EventsGateway,
   ) {}
 
   async create(userId: string, dto: CreateMediaDto) {
@@ -45,6 +59,10 @@ export class MediaService {
         metadata: { mediaId: asset.id },
       },
     });
+
+    if (asset.projectId) {
+      this.events.emitToProject(asset.projectId, 'media:created', serializeBigInt(asset));
+    }
 
     return asset;
   }
@@ -151,6 +169,10 @@ export class MediaService {
         metadata: { mediaId: assetId },
       },
     });
+
+    if (asset.projectId) {
+      this.events.emitToProject(asset.projectId, 'media:deleted', { id: assetId });
+    }
 
     return { message: 'Media asset deleted' };
   }
