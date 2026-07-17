@@ -13,8 +13,8 @@ import { Request } from 'express';
 import { MediaService } from './media.service';
 import { CreateMediaDto } from './dto/create-media.dto';
 import { CreateCloudinaryUploadDto } from './dto/create-cloudinary-upload.dto';
+import { FindMediaDto } from './dto/find-media.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { PaginationDto } from '../common/pagination.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('media')
@@ -40,18 +40,9 @@ export class MediaController {
   @Get()
   findAll(
     @Req() req: Request & { user: { id: string } },
-    @Query() pagination: PaginationDto,
-    @Query('type') type?: string,
-    @Query('projectId') projectId?: string,
-    @Query('search') search?: string,
+    @Query() query: FindMediaDto,
   ) {
-    return this.media.findAll(req.user.id, {
-      type,
-      projectId,
-      search,
-      limit: pagination.limit,
-      offset: pagination.offset,
-    });
+    return this.media.findAll(req.user.id, query);
   }
 
   @Get(':id/url')

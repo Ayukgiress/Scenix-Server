@@ -16,4 +16,8 @@ export class CreateCloudinaryUploadDto {
   @IsInt()
   @Min(0)
   fileSizeBytes?: number;
+
+  @IsOptional()
+  @IsString()
+  folder?: string;
 }

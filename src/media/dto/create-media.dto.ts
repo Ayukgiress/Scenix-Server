@@ -29,6 +29,10 @@ export class CreateMediaDto {
 
   @IsOptional()
   @IsString()
+  filename?: string;
+
+  @IsOptional()
+  @IsString()
   thumbnailUrl?: string;
 
   @IsOptional()
