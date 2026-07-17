@@ -96,7 +96,12 @@ export class ProjectsService {
   }
 
   async update(projectId: string, userId: string, dto: UpdateProjectDto) {
-    await this.findOne(projectId, userId);
+    const existing = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { userId: true },
+    });
+    if (!existing) throw new NotFoundException('Project not found');
+    if (existing.userId !== userId) throw new ForbiddenException();
 
     const updateData: Prisma.ProjectUpdateInput = {
       lastActivityAt: new Date(),
@@ -135,12 +140,17 @@ export class ProjectsService {
   }
 
   async remove(projectId: string, userId: string) {
-    await this.findOne(projectId, userId);
+    const existing = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { userId: true },
+    });
+    if (!existing) throw new NotFoundException('Project not found');
+    if (existing.userId !== userId) throw new ForbiddenException();
 
     await this.prisma.project.delete({ where: { id: projectId } });
 
     await this.prisma.activity.create({
-      data: { userId, projectId, action: 'PROJECT_DELETED' },
+      data: { userId, action: 'PROJECT_DELETED', metadata: { projectId } },
     });
 
     return { message: 'Project deleted' };

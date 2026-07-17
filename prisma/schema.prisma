@@ -20,10 +20,13 @@ model User {
   role            UserRole  @default(USER)
   emailVerifiedAt      DateTime?
   lastLoginAt          DateTime?
-  refreshTokenHash     String?
+  authProvider          AuthProvider @default(LOCAL)
+  refreshTokenHash      String?
   refreshTokenExpiresAt DateTime?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  passwordResetToken    String?
+  passwordResetExpires  DateTime?
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
 
   projects      Project[]
   media         MediaAsset[]
@@ -35,6 +38,11 @@ model User {
 enum UserRole {
   USER
   ADMIN
+}
+
+enum AuthProvider {
+  LOCAL
+  GOOGLE
 }
 
 model Project {
@@ -258,6 +266,7 @@ enum ActivityAction {
   EXPORT_STARTED
   EXPORT_COMPLETED
   EXPORT_FAILED
+  EXPORT_CANCELED
   AI_GENERATION_STARTED
   AI_GENERATION_COMPLETED
   AI_GENERATION_FAILED

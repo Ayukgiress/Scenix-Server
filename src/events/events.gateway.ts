@@ -7,6 +7,8 @@ import {
   MessageBody,
   ConnectedSocket,
 } from '@nestjs/websockets';
+import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Server, Socket, DefaultEventsMap } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
@@ -28,7 +30,10 @@ function userColor(userId: string): string {
 
 @WebSocketGateway({
   cors: {
-    origin: process.env.CLIENT_URL ?? 'http://localhost:5173',
+    origin: (origin: string, cb: (err: Error | null, allow?: boolean) => void) => {
+      const allowed = process.env.CLIENT_URL ?? 'http://localhost:5173';
+      cb(null, !origin || origin === allowed);
+    },
     credentials: true,
   },
 })
@@ -36,12 +41,14 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
+  private readonly logger = new Logger(EventsGateway.name);
   private userSockets = new Map<string, Set<string>>();
   private projectRooms = new Map<string, Set<string>>();
 
   constructor(
     private jwtService: JwtService,
     private prisma: PrismaService,
+    private config: ConfigService,
   ) {}
 
   async handleConnection(client: AuthenticatedSocket) {
@@ -68,9 +75,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
       this.userSockets.get(userId)!.add(client.id);
 
-      console.log(`User ${userId} connected (socket ${client.id})`);
+      this.logger.log(`User ${userId} connected (socket ${client.id})`);
     } catch (error) {
-      console.error('WebSocket auth error:', error);
+      this.logger.warn(`WebSocket auth error: ${(error as Error).message}`);
       client.disconnect();
     }
   }
@@ -97,7 +104,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
     }
 
-    console.log(`Client disconnected: ${client.id}`);
+    this.logger.log(`Client disconnected: ${client.id}`);
   }
 
   @SubscribeMessage('join-project')
@@ -124,7 +131,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
     this.projectRooms.get(projectId)!.add(client.id);
 
-    console.log(`Client ${client.id} joined project ${projectId}`);
+    this.logger.log(`Client ${client.id} joined project ${projectId}`);
     return { success: true };
   }
 
@@ -147,7 +154,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.server.to(room).emit('cursor:leave', { userId });
     }
 
-    console.log(`Client ${client.id} left project ${projectId}`);
+    this.logger.log(`Client ${client.id} left project ${projectId}`);
     return { success: true };
   }
 
@@ -173,8 +180,8 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     });
   }
 
-  emitToProject(projectId: string, event: string, data: any) {
-    this.server.to(`project:${projectId}`).emit(event, data);
+  emitToProject(projectId: string, event: string, data: unknown) {
+    this.server.to(`project:${projectId}`).emit(event, JSON.parse(JSON.stringify(data, (_, v) => typeof v === 'bigint' ? v.toString() : v)));
   }
 
   emitToUser(userId: string, event: string, data: any) {

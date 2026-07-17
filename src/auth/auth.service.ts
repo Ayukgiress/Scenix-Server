@@ -95,7 +95,9 @@ export class AuthService {
       subject: 'Verify your Scenix account',
       html: `<p>Click <a href="${verifyUrl}">here</a> to verify your email. Link expires in 24h.</p>`,
     });
-    this.logger.debug(`[DEV] Verify email URL for ${user.email}: ${verifyUrl}`);
+    if (this.config.get('NODE_ENV') !== 'production') {
+      this.logger.debug(`[DEV] Verify email URL for ${user.email}: ${verifyUrl}`);
+    }
 
     return {
       message: 'Registration successful. Please verify your email.',
@@ -224,6 +226,15 @@ export class AuthService {
       { secret: this.config.getOrThrow<string>('JWT_SECRET'), expiresIn: '1h' },
     );
 
+    const tokenHash = createHash('sha256').update(resetToken).digest('hex');
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetToken: tokenHash,
+        passwordResetExpires: new Date(Date.now() + 3600000),
+      },
+    });
+
     const resetUrl = `${this.config.get('CLIENT_URL')}/reset-password?token=${resetToken}`;
 
     await this.mailer.sendMail({
@@ -231,9 +242,9 @@ export class AuthService {
       subject: 'Reset your Scenix password',
       html: `<p>Click <a href="${resetUrl}">here</a> to reset your password. Link expires in 1h.</p>`,
     });
-    this.logger.debug(
-      `[DEV] Password reset URL for ${user.email}: ${resetUrl}`,
-    );
+    if (this.config.get('NODE_ENV') !== 'production') {
+      this.logger.debug(`[DEV] Password reset URL for ${user.email}: ${resetUrl}`);
+    }
 
     return { message: 'If that email exists, a reset link was sent.' };
   }
@@ -252,16 +263,20 @@ export class AuthService {
       throw new BadRequestException('Invalid token purpose');
     }
 
+    const tokenHash = createHash('sha256').update(dto.token).digest('hex');
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
     });
     if (!user) throw new BadRequestException('Invalid or expired token');
+    if (user.passwordResetToken !== tokenHash) {
+      throw new BadRequestException('Invalid or expired token');
+    }
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
     await this.prisma.user.update({
       where: { id: payload.sub },
-      data: { passwordHash },
+      data: { passwordHash, passwordResetToken: null, passwordResetExpires: null },
     });
 
     return { message: 'Password reset successfully' };
@@ -283,6 +298,7 @@ export class AuthService {
           name: googleUser.name,
           profileImageUrl: googleUser.profileImageUrl,
           passwordHash: '',
+          authProvider: 'GOOGLE',
           emailVerifiedAt: new Date(),
         },
       });

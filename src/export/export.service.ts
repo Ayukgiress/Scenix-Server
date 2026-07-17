@@ -4,12 +4,18 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bull';
+import type { Queue } from 'bull';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateExportDto } from './dto/create-export.dto';
+import { EXPORT_QUEUE, ExportJobPayload } from './export.processor';
 
 @Injectable()
 export class ExportService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @InjectQueue(EXPORT_QUEUE) private exportQueue: Queue<ExportJobPayload>,
+  ) {}
 
   async create(userId: string, dto: CreateExportDto) {
     // Verify the project exists and belongs to user
@@ -40,6 +46,11 @@ export class ExportService {
         metadata: { exportJobId: job.id },
       },
     });
+
+    await this.exportQueue.add(
+      { exportJobId: job.id, userId, projectId: dto.projectId },
+      { attempts: 3, backoff: { type: 'exponential', delay: 5000 }, removeOnComplete: true },
+    );
 
     return job;
   }
@@ -98,7 +109,7 @@ export class ExportService {
       data: {
         userId,
         projectId: job.projectId,
-        action: 'EXPORT_FAILED',
+        action: 'EXPORT_CANCELED',
         metadata: {
           exportJobId: jobId,
           reason: 'canceled_by_user',

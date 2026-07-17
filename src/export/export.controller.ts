@@ -12,6 +12,7 @@ import { Request } from 'express';
 import { ExportService } from './export.service';
 import { CreateExportDto } from './dto/create-export.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PaginationDto } from '../common/pagination.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('export')
@@ -29,16 +30,15 @@ export class ExportController {
   @Get()
   findAll(
     @Req() req: Request & { user: { id: string } },
+    @Query() pagination: PaginationDto,
     @Query('projectId') projectId?: string,
     @Query('status') status?: string,
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
   ) {
     return this.exportService.findAll(req.user.id, {
       projectId,
       status,
-      limit: limit ? parseInt(limit, 10) : undefined,
-      offset: offset ? parseInt(offset, 10) : undefined,
+      limit: pagination.limit,
+      offset: pagination.offset,
     });
   }
 

@@ -17,6 +17,7 @@ import { UpdateProjectDto } from './dto/update-project.dto';
 import { CreateClipDto } from './dto/create-clip.dto';
 import { UpdateClipDto } from './dto/update-clip.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PaginationDto } from '../common/pagination.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('projects')
@@ -34,18 +35,17 @@ export class ProjectsController {
   @Get()
   findAll(
     @Req() req: Request & { user: { id: string } },
+    @Query() pagination: PaginationDto,
     @Query('status') status?: string,
     @Query('search') search?: string,
     @Query('sort') sort?: 'asc' | 'desc',
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
   ) {
     return this.projects.findAll(req.user.id, {
       status,
       search,
       sort,
-      limit: limit ? parseInt(limit, 10) : undefined,
-      offset: offset ? parseInt(offset, 10) : undefined,
+      limit: pagination.limit,
+      offset: pagination.offset,
     });
   }
 
@@ -114,12 +114,11 @@ export class ProjectsController {
   findAllActivity(
     @Param('id') id: string,
     @Req() req: Request & { user: { id: string } },
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
+    @Query() pagination: PaginationDto,
   ) {
     return this.projects.findAllActivity(id, req.user.id, {
-      limit: limit ? parseInt(limit, 10) : undefined,
-      offset: offset ? parseInt(offset, 10) : undefined,
+      limit: pagination.limit,
+      offset: pagination.offset,
     });
   }
 }
