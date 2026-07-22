@@ -16,6 +16,8 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
+import { FacebookAuthGuard } from './guards/facebook-auth.guard';
+import { TikTokAuthGuard } from './guards/tiktok-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 @Controller('auth')
@@ -85,6 +87,40 @@ export class AuthController {
     },
   ) {
     return this.auth.googleLogin(req.user);
+  }
+
+  @SkipThrottle()
+  @UseGuards(FacebookAuthGuard)
+  @Get('facebook')
+  facebookLogin() {}
+
+  @SkipThrottle()
+  @UseGuards(FacebookAuthGuard)
+  @Get('facebook/callback')
+  facebookCallback(
+    @Req()
+    req: Request & {
+      user: { email: string; name: string; profileImageUrl?: string };
+    },
+  ) {
+    return this.auth.facebookLogin(req.user);
+  }
+
+  @SkipThrottle()
+  @UseGuards(TikTokAuthGuard)
+  @Get('tiktok')
+  tiktokLogin() {}
+
+  @SkipThrottle()
+  @UseGuards(TikTokAuthGuard)
+  @Get('tiktok/callback')
+  tiktokCallback(
+    @Req()
+    req: Request & {
+      user: { email: string; name: string; profileImageUrl?: string };
+    },
+  ) {
+    return this.auth.tiktokLogin(req.user);
   }
 
   @SkipThrottle()

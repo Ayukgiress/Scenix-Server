@@ -6,10 +6,7 @@ import { ExportProcessor, EXPORT_QUEUE } from './export.processor';
 import { EventsModule } from '../events/events.module';
 
 @Module({
-  imports: [
-    BullModule.registerQueue({ name: EXPORT_QUEUE }),
-    EventsModule,
-  ],
+  imports: [BullModule.registerQueue({ name: EXPORT_QUEUE }), EventsModule],
   providers: [ExportService, ExportProcessor],
   controllers: [ExportController],
 })

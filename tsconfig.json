@@ -15,7 +15,7 @@
     "outDir": "./dist",
     "baseUrl": "./",
     "paths": {
-      "@prisma/client": ["./node_modules/.prisma/client/index.d.ts"]
+      "@prisma/client": ["./node_modules/.prisma/client/index.d.ts", "./node_modules/@prisma/client/default.d.ts"]
     },
     "incremental": true,
     "skipLibCheck": true,

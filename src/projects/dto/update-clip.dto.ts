@@ -56,10 +56,19 @@ export class UpdateClipDto {
   opacity?: number;
 
   @IsOptional()
+  @IsNumber()
+  @Min(0.1)
+  speed?: number;
+
+  @IsOptional()
   @IsObject()
   transform?: Record<string, unknown>;
 
   @IsOptional()
   @IsObject()
   metadata?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsObject()
+  keyframes?: Record<string, unknown>;
 }

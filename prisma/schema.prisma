@@ -43,6 +43,8 @@ enum UserRole {
 enum AuthProvider {
   LOCAL
   GOOGLE
+  FACEBOOK
+  TIKTOK
 }
 
 model Project {
@@ -65,6 +67,7 @@ model Project {
 
   media         MediaAsset[]
   clips         TimelineClip[]
+  subtitles     SubtitleTrack[]
   exportJobs    ExportJob[]
   aiGenerations AiGeneration[]
   activity      Activity[]
@@ -136,14 +139,32 @@ model TimelineClip {
   height      Float?
   rotation    Float  @default(0)
   opacity     Float  @default(1)
+  speed       Float  @default(1)
   transform   Json?
   metadata    Json?
+  keyframes   Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([projectId])
   @@index([mediaAssetId])
+}
+
+model SubtitleTrack {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  label     String  @default("Subtitles")
+  language  String  @default("en")
+  srtContent String
+  vttContent String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
 }
 
 model ExportJob {

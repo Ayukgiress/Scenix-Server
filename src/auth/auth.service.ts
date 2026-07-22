@@ -11,6 +11,7 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuthProvider } from '@prisma/client';
 import { RegisterDto } from './dto/register.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
@@ -96,7 +97,9 @@ export class AuthService {
       html: `<p>Click <a href="${verifyUrl}">here</a> to verify your email. Link expires in 24h.</p>`,
     });
     if (this.config.get('NODE_ENV') !== 'production') {
-      this.logger.debug(`[DEV] Verify email URL for ${user.email}: ${verifyUrl}`);
+      this.logger.debug(
+        `[DEV] Verify email URL for ${user.email}: ${verifyUrl}`,
+      );
     }
 
     return {
@@ -243,7 +246,9 @@ export class AuthService {
       html: `<p>Click <a href="${resetUrl}">here</a> to reset your password. Link expires in 1h.</p>`,
     });
     if (this.config.get('NODE_ENV') !== 'production') {
-      this.logger.debug(`[DEV] Password reset URL for ${user.email}: ${resetUrl}`);
+      this.logger.debug(
+        `[DEV] Password reset URL for ${user.email}: ${resetUrl}`,
+      );
     }
 
     return { message: 'If that email exists, a reset link was sent.' };
@@ -276,7 +281,11 @@ export class AuthService {
 
     await this.prisma.user.update({
       where: { id: payload.sub },
-      data: { passwordHash, passwordResetToken: null, passwordResetExpires: null },
+      data: {
+        passwordHash,
+        passwordResetToken: null,
+        passwordResetExpires: null,
+      },
     });
 
     return { message: 'Password reset successfully' };
@@ -298,7 +307,67 @@ export class AuthService {
           name: googleUser.name,
           profileImageUrl: googleUser.profileImageUrl,
           passwordHash: '',
-          authProvider: 'GOOGLE',
+          authProvider: AuthProvider.GOOGLE,
+          emailVerifiedAt: new Date(),
+        },
+      });
+    }
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+
+    return this.issueTokens(user.id, user.email, !!user.emailVerifiedAt);
+  }
+
+  async facebookLogin(facebookUser: {
+    email: string;
+    name: string;
+    profileImageUrl?: string;
+  }) {
+    let user = await this.prisma.user.findUnique({
+      where: { email: facebookUser.email },
+    });
+
+    if (!user) {
+      user = await this.prisma.user.create({
+        data: {
+          email: facebookUser.email,
+          name: facebookUser.name,
+          profileImageUrl: facebookUser.profileImageUrl,
+          passwordHash: '',
+          authProvider: 'FACEBOOK' as AuthProvider,
+          emailVerifiedAt: new Date(),
+        },
+      });
+    }
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+
+    return this.issueTokens(user.id, user.email, !!user.emailVerifiedAt);
+  }
+
+  async tiktokLogin(tiktokUser: {
+    email: string;
+    name: string;
+    profileImageUrl?: string;
+  }) {
+    let user = await this.prisma.user.findUnique({
+      where: { email: tiktokUser.email },
+    });
+
+    if (!user) {
+      user = await this.prisma.user.create({
+        data: {
+          email: tiktokUser.email,
+          name: tiktokUser.name,
+          profileImageUrl: tiktokUser.profileImageUrl,
+          passwordHash: '',
+          authProvider: 'TIKTOK' as AuthProvider,
           emailVerifiedAt: new Date(),
         },
       });

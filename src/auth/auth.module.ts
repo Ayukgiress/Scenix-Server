@@ -10,6 +10,8 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { LocalStrategy } from './strategies/local.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
+import { FacebookStrategy } from './strategies/facebook.strategy';
+import { TikTokStrategy } from './strategies/tiktok.strategy';
 import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
@@ -32,6 +34,8 @@ import { PrismaModule } from '../prisma/prisma.module';
     JwtStrategy,
     LocalStrategy,
     GoogleStrategy,
+    FacebookStrategy,
+    TikTokStrategy,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
   controllers: [AuthController],

@@ -35,7 +35,10 @@ export class PrismaExceptionFilter implements ExceptionFilter {
             .status(HttpStatus.BAD_REQUEST)
             .json({ statusCode: 400, message: 'Related resource not found' });
         default:
-          this.logger.error(`Unhandled Prisma error ${exception.code}`, exception.message);
+          this.logger.error(
+            `Unhandled Prisma error ${exception.code}`,
+            exception.message,
+          );
           return res
             .status(HttpStatus.INTERNAL_SERVER_ERROR)
             .json({ statusCode: 500, message: 'Database error' });

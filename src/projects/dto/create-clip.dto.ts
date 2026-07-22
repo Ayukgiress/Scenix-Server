@@ -58,6 +58,11 @@ export class CreateClipDto {
   opacity?: number;
 
   @IsOptional()
+  @IsNumber()
+  @Min(0.1)
+  speed?: number;
+
+  @IsOptional()
   @IsObject()
   transform?: Record<string, unknown>;
 
@@ -66,4 +71,8 @@ export class CreateClipDto {
   @IsNotEmpty()
   @IsObject()
   metadata?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsObject()
+  keyframes?: Record<string, unknown>;
 }

@@ -159,7 +159,9 @@ export class MediaService {
     });
 
     if (asset.projectId) {
-      this.events.emitToProject(asset.projectId, 'media:deleted', { id: assetId });
+      this.events.emitToProject(asset.projectId, 'media:deleted', {
+        id: assetId,
+      });
     }
 
     return { message: 'Media asset deleted' };

@@ -181,8 +181,10 @@ export class ProjectsService {
           height: dto.height,
           rotation: dto.rotation ?? 0,
           opacity: dto.opacity ?? 1,
+          speed: dto.speed ?? 1,
           transform: dto.transform as Prisma.InputJsonValue | undefined,
           metadata: dto.metadata as Prisma.InputJsonValue | undefined,
+          keyframes: dto.keyframes as Prisma.InputJsonValue | undefined,
         },
       })
       .then((clip) => {
@@ -215,8 +217,7 @@ export class ProjectsService {
     if (!clip) throw new NotFoundException('Clip not found');
 
     const updateData: Prisma.TimelineClipUncheckedUpdateInput = {};
-    if (dto.mediaAssetId != null)
-      updateData.mediaAssetId = dto.mediaAssetId;
+    if (dto.mediaAssetId != null) updateData.mediaAssetId = dto.mediaAssetId;
     if (dto.trackIndex !== undefined) updateData.trackIndex = dto.trackIndex;
     if (dto.zIndex !== undefined) updateData.zIndex = dto.zIndex;
     if (dto.startTimeMs !== undefined) updateData.startTimeMs = dto.startTimeMs;
@@ -227,10 +228,13 @@ export class ProjectsService {
     if (dto.height !== undefined) updateData.height = dto.height;
     if (dto.rotation !== undefined) updateData.rotation = dto.rotation;
     if (dto.opacity !== undefined) updateData.opacity = dto.opacity;
+    if (dto.speed !== undefined) updateData.speed = dto.speed;
     if (dto.transform !== undefined)
       updateData.transform = dto.transform as Prisma.InputJsonValue;
     if (dto.metadata !== undefined)
       updateData.metadata = dto.metadata as Prisma.InputJsonValue;
+    if (dto.keyframes !== undefined)
+      updateData.keyframes = dto.keyframes as Prisma.InputJsonValue;
 
     return this.prisma.timelineClip
       .update({

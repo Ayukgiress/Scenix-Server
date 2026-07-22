@@ -49,7 +49,11 @@ export class ExportService {
 
     await this.exportQueue.add(
       { exportJobId: job.id, userId, projectId: dto.projectId },
-      { attempts: 3, backoff: { type: 'exponential', delay: 5000 }, removeOnComplete: true },
+      {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5000 },
+        removeOnComplete: true,
+      },
     );
 
     return job;

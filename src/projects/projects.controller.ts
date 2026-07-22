@@ -110,6 +110,30 @@ export class ProjectsController {
     return this.projects.removeClip(clipId, id, req.user.id);
   }
 
+  @Post(':id/clips/:clipId/keyframes')
+  setKeyframes(
+    @Param('id') id: string,
+    @Param('clipId') clipId: string,
+    @Body() body: { keyframes: Record<string, unknown> },
+    @Req() req: Request & { user: { id: string } },
+  ) {
+    return this.projects.updateClip(clipId, id, req.user.id, {
+      keyframes: body.keyframes,
+    });
+  }
+
+  @Patch(':id/clips/:clipId/keyframes')
+  patchKeyframes(
+    @Param('id') id: string,
+    @Param('clipId') clipId: string,
+    @Body() body: { keyframes: Record<string, unknown> },
+    @Req() req: Request & { user: { id: string } },
+  ) {
+    return this.projects.updateClip(clipId, id, req.user.id, {
+      keyframes: body.keyframes,
+    });
+  }
+
   @Get(':id/activity')
   findAllActivity(
     @Param('id') id: string,

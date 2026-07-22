@@ -30,7 +30,10 @@ function userColor(userId: string): string {
 
 @WebSocketGateway({
   cors: {
-    origin: (origin: string, cb: (err: Error | null, allow?: boolean) => void) => {
+    origin: (
+      origin: string,
+      cb: (err: Error | null, allow?: boolean) => void,
+    ) => {
       const allowed = process.env.CLIENT_URL ?? 'http://localhost:5173';
       cb(null, !origin || origin === allowed);
     },
@@ -59,7 +62,10 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return;
       }
 
-      const payload = await this.jwtService.verifyAsync<{ sub: string; email: string }>(token);
+      const payload = await this.jwtService.verifyAsync<{
+        sub: string;
+        email: string;
+      }>(token);
       const userId = payload.sub;
 
       const user = await this.prisma.user.findUnique({
@@ -68,7 +74,8 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
 
       client.data.userId = userId;
-      client.data.userName = user?.name ?? payload.email?.split('@')[0] ?? userId;
+      client.data.userName =
+        user?.name ?? payload.email?.split('@')[0] ?? userId;
 
       if (!this.userSockets.has(userId)) {
         this.userSockets.set(userId, new Set());
@@ -181,7 +188,16 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   emitToProject(projectId: string, event: string, data: unknown) {
-    this.server.to(`project:${projectId}`).emit(event, JSON.parse(JSON.stringify(data, (_, v) => typeof v === 'bigint' ? v.toString() : v)));
+    this.server
+      .to(`project:${projectId}`)
+      .emit(
+        event,
+        JSON.parse(
+          JSON.stringify(data, (_, v) =>
+            typeof v === 'bigint' ? v.toString() : v,
+          ),
+        ),
+      );
   }
 
   emitToUser(userId: string, event: string, data: any) {

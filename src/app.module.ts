@@ -17,6 +17,8 @@ import { StorageModule } from './storage/storage.module';
 import { EventsModule } from './events/events.module';
 import { HealthModule } from './health/health.module';
 
+import { SubtitlesModule } from './subtitles/subtitles.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -62,6 +64,7 @@ import { HealthModule } from './health/health.module';
     ProjectsModule,
     MediaModule,
     ExportModule,
+    SubtitlesModule,
     HealthModule,
   ],
   controllers: [AppController],
